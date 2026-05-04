@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrowdSense — AI Crowd Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080a0f;
+    --surface: #0d1117;
+    --panel: #111622;
+    --border: #1e2d45;
+    --accent: #00ff88;
+    --accent2: #00cfff;
+    --danger: #ff3355;
+    --warn: #ffcc00;
+    --text: #c8d8f0;
+    --muted: #4a6080;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-ui: 'Rajdhani', sans-serif;
+    --font-display: 'Bebas Neue', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,207,255,0.06) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(30,45,69,0.3) 39px, rgba(30,45,69,0.3) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(30,45,69,0.15) 39px, rgba(30,45,69,0.15) 40px);
+  }
+
+  /* ---- HEADER ---- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(13,17,23,0.9);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 38px; height: 38px;
+    border: 2px solid var(--accent);
+    display: grid;
+    place-items: center;
+    position: relative;
+  }
+  .logo-icon::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    opacity: 0.8;
+    animation: pulse-icon 2s ease-in-out infinite;
+  }
+  @keyframes pulse-icon {
+    0%,100% { transform: scale(1); opacity:0.8; }
+    50% { transform: scale(0.8); opacity:0.4; }
+  }
+
+  .logo-text {
+    font-family: var(--font-display);
+    font-size: 28px;
+    letter-spacing: 3px;
+    color: var(--accent);
+  }
+  .logo-sub {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: blink 1.5s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* ---- MAIN ---- */
+  main {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 40px 30px;
+  }
+
+  /* ---- MODE TABS ---- */
+  .mode-tabs {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    width: fit-content;
+    margin-bottom: 36px;
+  }
+
+  .mode-tab {
+    padding: 12px 32px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    text-transform: uppercase;
+  }
+  .mode-tab:not(:last-child) { border-right: 1px solid var(--border); }
+  .mode-tab.active {
+    color: var(--accent);
+    background: rgba(0,255,136,0.06);
+  }
+  .mode-tab.active::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+  .mode-tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.02); }
+
+  /* ---- PANELS ---- */
+  .panel-wrap { display: none; }
+  .panel-wrap.active { display: block; }
+
+  /* IMAGE PANEL */
+  .image-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .upload-zone {
+    border: 1px dashed var(--border);
+    background: var(--surface);
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,255,136,0.03);
+  }
+  .upload-zone.has-image { cursor: default; }
+
+  .upload-icon {
+    width: 56px; height: 56px;
+    border: 2px solid var(--border);
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    font-size: 22px;
+  }
+  .upload-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-align: center;
+  }
+  .upload-sub {
+    font-size: 10px;
+    color: #2a3a55;
+    font-family: var(--font-mono);
+  }
+
+  #preview-img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: none;
+    position: absolute;
+    inset: 0;
+  }
+
+  #result-img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: none;
+    position: absolute;
+    inset: 0;
+  }
+
+  .processing-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(8,10,15,0.85);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    z-index: 10;
+  }
+  .processing-overlay.show { display: flex; }
+
+  .scanner-line {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scan 2s linear infinite;
+  }
+  @keyframes scan {
+    0% { top: 0; }
+    100% { top: 100%; }
+  }
+
+  .proc-text {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    animation: flicker 0.1s infinite alternate;
+  }
+  @keyframes flicker { 0%{opacity:1} 100%{opacity:0.85} }
+
+  /* SIDE PANEL */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 20px;
+  }
+
+  .card-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-label::before {
+    content: '';
+    display: block;
+    width: 4px; height: 4px;
+    background: var(--accent2);
+  }
+
+  /* COUNT DISPLAY */
+  .count-display {
+    font-family: var(--font-display);
+    font-size: 80px;
+    line-height: 1;
+    color: var(--accent);
+    text-align: center;
+    padding: 10px 0;
+    text-shadow: 0 0 40px rgba(0,255,136,0.4);
+    transition: all 0.3s;
+  }
+
+  /* RISK METER */
+  .risk-label {
+    font-family: var(--font-display);
+    font-size: 32px;
+    text-align: center;
+    letter-spacing: 4px;
+    padding: 8px 0;
+    transition: color 0.3s;
+  }
+
+  .risk-bar-wrap {
+    height: 6px;
+    background: var(--border);
+    margin-top: 12px;
+    position: relative;
+  }
+  .risk-bar {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1), background 0.3s;
+    width: 0%;
+  }
+  .risk-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+  }
+  .risk-tick {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+  }
+
+  /* DETECTION LIST */
+  .det-list {
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .det-list::-webkit-scrollbar { width: 3px; }
+  .det-list::-webkit-scrollbar-track { background: var(--border); }
+  .det-list::-webkit-scrollbar-thumb { background: var(--muted); }
+
+  .det-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: rgba(0,255,136,0.04);
+    border-left: 2px solid var(--accent);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    animation: slideIn 0.2s ease-out;
+  }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+
+  .det-conf { color: var(--accent); }
+  .det-empty {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    padding: 20px;
+    letter-spacing: 1px;
+  }
+
+  /* ANALYZE BUTTON */
+  .btn-analyze {
+    width: 100%;
+    padding: 16px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-analyze:hover:not(:disabled) {
+    background: #00ffaa;
+    box-shadow: 0 0 30px rgba(0,255,136,0.4);
+  }
+  .btn-analyze:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+  .btn-analyze::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+    transform: translateX(-100%);
+    transition: transform 0.5s;
+  }
+  .btn-analyze:hover:not(:disabled)::after { transform: translateX(100%); }
+
+  /* UPLOAD CONTROLS */
+  .upload-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .btn-secondary {
+    flex: 1;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  #file-input { display: none; }
+
+  /* DEVICE BADGE */
+  .device-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    padding: 8px 12px;
+    background: rgba(0,207,255,0.05);
+    border: 1px solid rgba(0,207,255,0.1);
+  }
+  .device-badge span { color: var(--accent2); }
+
+  /* CAMERA PANEL */
+  .camera-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .camera-feed-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    position: relative;
+    min-height: 420px;
+    overflow: hidden;
+  }
+
+  .camera-feed-wrap img {
+    width: 100%;
+    display: block;
+  }
+
+  .cam-corner {
+    position: absolute;
+    width: 16px; height: 16px;
+    border-color: var(--accent);
+    border-style: solid;
+    border-width: 0;
+  }
+  .cam-corner.tl { top:10px; left:10px; border-top-width:2px; border-left-width:2px; }
+  .cam-corner.tr { top:10px; right:10px; border-top-width:2px; border-right-width:2px; }
+  .cam-corner.bl { bottom:10px; left:10px; border-bottom-width:2px; border-left-width:2px; }
+  .cam-corner.br { bottom:10px; right:10px; border-bottom-width:2px; border-right-width:2px; }
+
+  .rec-badge {
+    position: absolute;
+    top: 16px; right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(8,10,15,0.8);
+    padding: 5px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--danger);
+    letter-spacing: 2px;
+  }
+  .rec-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--danger);
+    animation: blink 1s ease-in-out infinite;
+  }
+
+  .cam-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 420px;
+    gap: 16px;
+    color: var(--muted);
+  }
+  .cam-placeholder svg {
+    opacity: 0.2;
+  }
+  .cam-placeholder p {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+  }
+
+  .btn-cam {
+    width: 100%;
+    padding: 14px;
+    font-family: var(--font-display);
+    font-size: 18px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+  .btn-cam.start {
+    background: var(--accent2);
+    color: #000;
+  }
+  .btn-cam.start:hover {
+    box-shadow: 0 0 25px rgba(0,207,255,0.4);
+  }
+  .btn-cam.stop {
+    background: var(--danger);
+    color: #fff;
+  }
+  .btn-cam.stop:hover {
+    box-shadow: 0 0 25px rgba(255,51,85,0.4);
+  }
+
+  /* LIVE STATS */
+  .live-count {
+    font-family: var(--font-display);
+    font-size: 90px;
+    line-height: 1;
+    text-align: center;
+    transition: color 0.3s;
+    text-shadow: 0 0 40px currentColor;
+  }
+
+  .pulse-ring {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    animation: ring-pulse 2s ease-in-out infinite;
+  }
+  @keyframes ring-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.3); }
+    50% { box-shadow: 0 0 0 16px rgba(0,255,136,0); }
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--muted); }
+
+  /* FOOTER */
+  footer {
+    text-align: center;
+    padding: 30px;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-top: 60px;
+  }
+  footer span { color: var(--accent2); }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .image-layout, .camera-layout { grid-template-columns: 1fr; }
+    header { padding: 14px 20px; }
+    main { padding: 24px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <div>
+      <div class="logo-text">CrowdSense</div>
+      <div class="logo-sub">AI CROWD DETECTION SYSTEM</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <div class="status-dot"></div>
+    SYSTEM ONLINE &nbsp;|&nbsp; DETR-RESNET-50 &nbsp;|&nbsp; <span id="header-device">CPU</span>
+  </div>
+</header>
+
+<main>
+  <div class="mode-tabs">
+    <button class="mode-tab active" onclick="switchMode('image')">&#9654; IMAGE ANALYSIS</button>
+    <button class="mode-tab" onclick="switchMode('camera')">&#9679; LIVE CAMERA</button>
+  </div>
+
+  <!-- IMAGE MODE -->
+  <div class="panel-wrap active" id="panel-image">
+    <div class="image-layout">
+      <div>
+        <div class="upload-zone" id="upload-zone"
+             onclick="triggerUpload()"
+             ondragover="handleDragOver(event)"
+             ondragleave="handleDragLeave(event)"
+             ondrop="handleDrop(event)">
+          <div class="upload-placeholder" id="upload-placeholder">
+            <div class="upload-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="1"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </div>
+            <div class="upload-label">DROP IMAGE HERE<br>OR CLICK TO UPLOAD</div>
+            <div class="upload-sub">JPG · PNG · WEBP · MAX 16MB</div>
+          </div>
+          <img id="preview-img" alt="preview">
+          <img id="result-img" alt="result">
+          <div class="processing-overlay" id="proc-overlay">
+            <div class="scanner-line"></div>
+            <div class="proc-text">ANALYZING FRAME...</div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:2px;">RUNNING DETR INFERENCE</div>
+          </div>
+        </div>
+        <div class="upload-controls">
+          <button class="btn-secondary" onclick="triggerUpload()">↑ LOAD IMAGE</button>
+          <button class="btn-secondary" onclick="clearImage()">✕ CLEAR</button>
+        </div>
+        <input type="file" id="file-input" accept="image/*" onchange="handleFile(event)">
+      </div>
+
+      <div class="side-panel">
+        <div class="card">
+          <div class="card-label">PEOPLE DETECTED</div>
+          <div class="count-display" id="count-display">—</div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">CROWD RISK LEVEL</div>
+          <div class="risk-label" id="risk-label" style="color:var(--muted)">PENDING</div>
+          <div class="risk-bar-wrap">
+            <div class="risk-bar" id="risk-bar"></div>
+          </div>
+          <div class="risk-ticks">
+            <span class="risk-tick">LOW &lt;10</span>
+            <span class="risk-tick">MED &lt;40</span>
+            <span class="risk-tick">HIGH 40+</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">DETECTIONS</div>
+          <div class="det-list" id="det-list">
+            <div class="det-empty">NO DATA YET</div>
+          </div>
+        </div>
+
+        <div class="device-badge" id="device-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+          </svg>
+          DEVICE: <span id="device-label">LOADING...</span>
+        </div>
+
+        <button class="btn-analyze" id="btn-analyze" onclick="analyzeImage()" disabled>
+          ANALYZE
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAMERA MODE -->
+  <div class="panel-wrap" id="panel-camera">
+    <div class="camera-layout">
+      <div>
+        <div class="camera-feed-wrap" id="cam-feed-wrap">
+          <div class="cam-placeholder" id="cam-placeholder">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+            </svg>
+            <p>CAMERA NOT STARTED</p>
+          </div>
+          <img id="cam-img" style="display:none;width:100%" src="" alt="live feed">
+          <div class="cam-corner tl"></div>
+          <div class="cam-corner tr"></div>
+          <div class="cam-corner bl"></div>
+          <div class="cam-corner br"></div>
+          <div class="rec-badge" id="rec-badge" style="display:none">
+            <div class="rec-dot"></div>LIVE
+          </div>
+        </div>
+      </div>
+
+      <div class="side-panel">
+        <div class="card" style="text-align:center">
+          <div class="card-label" style="justify-content:center">LIVE COUNT</div>
+          <div class="pulse-ring" id="pulse-ring">
+            <div class="live-count" id="live-count" style="color:var(--accent)">0</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">RISK STATUS</div>
+          <div class="risk-label" id="live-risk" style="color:var(--muted);font-size:28px">OFFLINE</div>
+          <div class="risk-bar-wrap" style="margin-top:10px">
+            <div class="risk-bar" id="live-risk-bar"></div>
+          </div>
+        </div>
+
+        <button class="btn-cam start" id="btn-cam" onclick="toggleCamera()">
+          ▶ START FEED
+        </button>
+
+        <div class="card" style="font-family:var(--font-mono);font-size:10px;color:var(--muted);line-height:1.8;letter-spacing:1px">
+          LIVE MODE streams your webcam through the DETR model in real-time.<br><br>
+          Detection runs server-side. Press ESC or Stop to end the session.
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  POWERED BY <span>FACEBOOK/DETR-RESNET-50</span> &nbsp;·&nbsp; BUILT WITH FLASK &nbsp;·&nbsp; CROWDSENSE v1.0
+</footer>
+
+<script>
+  // Mode switching
+  function switchMode(mode) {
+    document.querySelectorAll('.mode-tab').forEach((t,i) => {
+      t.classList.toggle('active', (mode==='image'&&i===0)||(mode==='camera'&&i===1));
+    });
+    document.getElementById('panel-image').classList.toggle('active', mode==='image');
+    document.getElementById('panel-camera').classList.toggle('active', mode==='camera');
+  }
+
+  // Image upload
+  let selectedFile = null;
+
+  function triggerUpload() {
+    document.getElementById('file-input').click();
+  }
+
+  function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    loadFile(file);
+  }
+
+  function loadFile(file) {
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const prev = document.getElementById('preview-img');
+      const res = document.getElementById('result-img');
+      prev.src = e.target.result;
+      prev.style.display = 'block';
+      res.style.display = 'none';
+      document.getElementById('upload-placeholder').style.display = 'none';
+      document.getElementById('upload-zone').classList.add('has-image');
+      document.getElementById('btn-analyze').disabled = false;
+      resetStats();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearImage() {
+    selectedFile = null;
+    document.getElementById('preview-img').style.display = 'none';
+    document.getElementById('result-img').style.display = 'none';
+    document.getElementById('upload-placeholder').style.display = 'flex';
+    document.getElementById('file-input').value = '';
+    document.getElementById('btn-analyze').disabled = true;
+    document.getElementById('upload-zone').classList.remove('has-image');
+    resetStats();
+  }
+
+  function resetStats() {
+    document.getElementById('count-display').textContent = '—';
+    document.getElementById('risk-label').textContent = 'PENDING';
+    document.getElementById('risk-label').style.color = 'var(--muted)';
+    document.getElementById('risk-bar').style.width = '0%';
+    document.getElementById('risk-bar').style.background = 'var(--accent)';
+    document.getElementById('det-list').innerHTML = '<div class="det-empty">NO DATA YET</div>';
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.add('drag-over');
+  }
+  function handleDragLeave() {
+    document.getElementById('upload-zone').classList.remove('drag-over');
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadFile(file);
+  }
+
+  async function analyzeImage() {
+    if (!selectedFile) return;
+    const btn = document.getElementById('btn-analyze');
+    const overlay = document.getElementById('proc-overlay');
+    btn.disabled = true;
+    overlay.classList.add('show');
+
+    const formData = new FormData();
+    formData.append('image', selectedFile);
+
+    try {
+      const resp = await fetch('/analyze', { method: 'POST', body: formData });
+      const data = await resp.json();
+      overlay.classList.remove('show');
+
+      if (data.success) {
+        // Show result image
+        const res = document.getElementById('result-img');
+        document.getElementById('preview-img').style.display = 'none';
+        res.src = 'data:image/jpeg;base64,' + data.image;
+        res.style.display = 'block';
+
+        // Update stats
+        updateStats(data.count, data.risk, data.risk_color, data.risk_level, data.detections);
+        document.getElementById('device-label').textContent = data.device.toUpperCase();
+        document.getElementById('header-device').textContent = data.device.toUpperCase();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (err) {
+      overlay.classList.remove('show');
+      alert('Request failed: ' + err.message);
+    }
+    btn.disabled = false;
+  }
+
+  function updateStats(count, risk, color, level, detections) {
+    // Count
+    const cd = document.getElementById('count-display');
+    cd.textContent = count;
+    cd.style.color = color;
+    cd.style.textShadow = `0 0 40px ${color}80`;
+
+    // Risk
+    const rl = document.getElementById('risk-label');
+    rl.textContent = risk;
+    rl.style.color = color;
+
+    // Bar
+    const rb = document.getElementById('risk-bar');
+    rb.style.width = (level * 100) + '%';
+    rb.style.background = color;
+
+    // Detections
+    const dl = document.getElementById('det-list');
+    if (detections.length === 0) {
+      dl.innerHTML = '<div class="det-empty">NO PERSONS DETECTED</div>';
+    } else {
+      dl.innerHTML = detections.map((d, i) => `
+        <div class="det-item">
+          <span>PERSON #${String(i+1).padStart(2,'0')}</span>
+          <span class="det-conf">${(d.confidence*100).toFixed(1)}%</span>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Camera
+  let cameraRunning = false;
+  let statsSource = null;
+
+  function toggleCamera() {
+    if (!cameraRunning) startCamera();
+    else stopCamera();
+  }
+
+  function startCamera() {
+    cameraRunning = true;
+    const btn = document.getElementById('btn-cam');
+    btn.textContent = '■ STOP FEED';
+    btn.className = 'btn-cam stop';
+    document.getElementById('cam-placeholder').style.display = 'none';
+    const img = document.getElementById('cam-img');
+    img.src = '/video_feed';
+    img.style.display = 'block';
+    document.getElementById('rec-badge').style.display = 'flex';
+
+    // SSE for stats
+    statsSource = new EventSource('/camera_stats');
+    statsSource.onmessage = (e) => {
+      const [count, risk, color] = e.data.split(',');
+      document.getElementById('live-count').textContent = count;
+      document.getElementById('live-count').style.color = color;
+      document.getElementById('pulse-ring').style.borderColor = color;
+      document.getElementById('live-risk').textContent = risk;
+      document.getElementById('live-risk').style.color = color;
+      const levels = {LOW:0.2, MEDIUM:0.6, HIGH:1.0};
+      document.getElementById('live-risk-bar').style.width = ((levels[risk]||0)*100)+'%';
+      document.getElementById('live-risk-bar').style.background = color;
+    };
+  }
+
+  function stopCamera() {
+    cameraRunning = false;
+    const btn = document.getElementById('btn-cam');
+    btn.textContent = '▶ START FEED';
+    btn.className = 'btn-cam start';
+    document.getElementById('cam-img').src = '';
+    document.getElementById('cam-img').style.display = 'none';
+    document.getElementById('cam-placeholder').style.display = 'flex';
+    document.getElementById('rec-badge').style.display = 'none';
+    if (statsSource) { statsSource.close(); statsSource = null; }
+    document.getElementById('live-count').textContent = '0';
+    document.getElementById('live-risk').textContent = 'OFFLINE';
+    document.getElementById('live-risk').style.color = 'var(--muted)';
+    document.getElementById('live-risk-bar').style.width = '0%';
+  }
+</script>
+</body>
+</html>
